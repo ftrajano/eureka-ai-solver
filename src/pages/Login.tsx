@@ -3,11 +3,70 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calculator, Brain } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        navigate("/dashboard", { replace: true });
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/dashboard", { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (!isLogin) {
+        if (password !== confirmPassword) {
+          toast({ title: "Senhas não conferem", description: "Verifique e tente novamente." });
+          return;
+        }
+        const redirectUrl = `${window.location.origin}/`;
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectUrl,
+            data: { full_name: name }
+          }
+        });
+        if (error) throw error;
+        toast({ title: "Cadastro criado!", description: "Verifique seu email para confirmar o acesso." });
+        setIsLogin(true);
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        toast({ title: "Bem-vindo!", description: "Login realizado com sucesso." });
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message ?? "Não foi possível processar a solicitação." });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-hero p-6">
@@ -45,7 +104,7 @@ const Login = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSubmit}>
               {!isLogin && (
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome completo</Label>
@@ -53,6 +112,8 @@ const Login = () => {
                     id="name" 
                     placeholder="Digite seu nome" 
                     className="bg-input/50 border-border"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                   />
                 </div>
               )}
@@ -64,6 +125,9 @@ const Login = () => {
                   type="email" 
                   placeholder="seu@email.com" 
                   className="bg-input/50 border-border"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
               
@@ -74,6 +138,9 @@ const Login = () => {
                   type="password" 
                   placeholder="••••••••" 
                   className="bg-input/50 border-border"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
               </div>
 
@@ -85,12 +152,15 @@ const Login = () => {
                     type="password" 
                     placeholder="••••••••" 
                     className="bg-input/50 border-border"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
                   />
                 </div>
               )}
 
-              <Button variant="hero" className="w-full" type="submit">
-                {isLogin ? "Entrar" : "Criar conta"}
+              <Button variant="hero" className="w-full" type="submit" disabled={loading}>
+                {loading ? (isLogin ? "Entrando..." : "Criando conta...") : (isLogin ? "Entrar" : "Criar conta")}
               </Button>
             </form>
 

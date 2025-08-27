@@ -2,12 +2,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Calculator, Brain, Send, History, User, LogOut } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate("/login", { replace: true });
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/login", { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,6 +36,11 @@ const Dashboard = () => {
     setTimeout(() => {
       setIsLoading(false);
     }, 2000);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
   };
 
   return (
@@ -47,7 +70,7 @@ const Dashboard = () => {
                 <User className="w-4 h-4 mr-2" />
                 Perfil
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sair
               </Button>
